@@ -14,27 +14,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const admin = createAdminClient()
   const g = await loadGame(admin, id)
   if (!g) return NextResponse.json({ error: 'Game not found.' }, { status: 404 })
-  if (g.status !== 'active') return NextResponse.json({ error: 'Game is over.', game: g }, { status: 409 })
+  if (g.status !== 'active') return NextResponse.json({ error: 'The game is over.', game: g }, { status: 409 })
 
   const ply = g.moves.length
   const mover = ply % 2 === 0 ? g.white_id : g.black_id
-  if (auth.user.id !== mover) return NextResponse.json({ error: 'Not your turn.' }, { status: 403 })
+  if (auth.user.id !== mover) return NextResponse.json({ error: 'Not your turn.', game: g }, { status: 409 })
 
   const timedOut = await settleClock(admin, g)
   if (timedOut) return NextResponse.json({ error: 'Out of time.', game: timedOut }, { status: 409 })
 
-  const { pos, seen } = replay(g.variant, g.start_fen, g.moves)
-  const played = typeof uci === 'string' ? tryMove(pos, seen, uci) : null
-  if (!played) return NextResponse.json({ error: 'Illegal move.' }, { status: 400 })
+  let played
+  try {
+    const { pos, seen } = replay(g.variant, g.start_fen, g.moves)
+    played = typeof uci === 'string' ? tryMove(pos, seen, uci) : null
+  } catch {
+    return NextResponse.json({ error: 'Could not read the game state.', game: g }, { status: 500 })
+  }
+  if (!played) return NextResponse.json({ error: 'Illegal move.', game: g }, { status: 400 })
 
   const now = Date.now()
-  const clocks = liveClocks(g, now)
-  const white = ply % 2 === 0 ? clocks.white + (ply >= 2 ? g.increment_ms : 0) : g.white_clock_ms
-  const black = ply % 2 === 1 ? clocks.black + (ply >= 2 ? g.increment_ms : 0) : g.black_clock_ms
+  const left = liveClocks(g, now)
   const patch = {
     moves: [...g.moves, played.uci],
-    white_clock_ms: Math.round(white),
-    black_clock_ms: Math.round(black),
+    move_count: ply + 1,
+    white_clock_ms: Math.round(ply % 2 === 0 ? left.white + g.increment_ms : g.white_clock_ms),
+    black_clock_ms: Math.round(ply % 2 === 1 ? left.black + g.increment_ms : g.black_clock_ms),
     last_move_at: new Date(now).toISOString(),
   }
 
@@ -44,14 +48,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ game: done ?? (await loadGame(admin, id)) })
   }
 
-  const { data, error } = await admin
+  const { data } = await admin
     .from('games')
     .update(patch)
     .eq('id', id)
     .eq('status', 'active')
-    .eq('moves', `{${g.moves.join(',')}}`)
+    .eq('move_count', ply)
     .select()
     .maybeSingle()
-  if (error || !data) return NextResponse.json({ error: 'Move conflict. Try again.', game: await loadGame(admin, id) }, { status: 409 })
+  if (!data) return NextResponse.json({ error: 'That move did not go through.', game: await loadGame(admin, id) }, { status: 409 })
   return NextResponse.json({ game: data })
 }

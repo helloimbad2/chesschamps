@@ -17,7 +17,7 @@ export default function QueueButton({ initiallyQueued }: { initiallyQueued: bool
         if (body.gameId) router.push(`/game/${body.gameId}`)
         else if (body.queued === false) setQueued(false)
       } catch {}
-    }, 2000)
+    }, 1500)
     return () => clearInterval(id)
   }, [queued, router])
 
@@ -45,10 +45,9 @@ export default function QueueButton({ initiallyQueued }: { initiallyQueued: bool
 
   return (
     <div className="stack">
-      <button className={queued ? 'btn ghost' : 'btn'} onClick={queued ? leave : join} disabled={busy}>
-        {queued ? 'Cancel search' : 'Play ranked qualifiers'}
+      <button className={queued ? 'btn ghost block' : 'btn block'} onClick={queued ? leave : join} disabled={busy}>
+        {queued ? (<><span className="pulse" />Searching. Tap to cancel</>) : 'Play ranked qualifiers'}
       </button>
-      {queued && <p className="sub" style={{ margin: 0 }}>Looking for an opponent</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </div>
   )

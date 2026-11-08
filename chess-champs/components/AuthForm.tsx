@@ -2,13 +2,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Chessboard } from 'react-chessboard'
 import { createClient } from '@/lib/supabase/client'
+import Brand from './Brand'
 
-const board = Array.from({ length: 64 }, (_, i) => {
-  const r = Math.floor(i / 8), c = i % 8
-  if ((r === 4 && c === 3) || (r === 3 && c === 4)) return 'a'
-  return (r + c) % 2 ? 'd' : 'l'
-})
+const SHOWCASE = 'r2q1rk1/pp2bppp/2n1pn2/2pp4/3P4/2PBPN2/PP1N1PPP/R1BQ1RK1'
 
 export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter()
@@ -65,42 +63,56 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className="auth">
       <main className="auth-main">
-        <div className="wordmark">Chess Champs</div>
-        {sent ? (
-          <>
-            <h1>Check your email</h1>
-            <p className="sub" style={{ margin: 0 }}>Open the link we sent to finish creating your account, then log in.</p>
-            <p className="alt"><Link href="/login">Go to log in</Link></p>
-          </>
-        ) : (
-          <>
-            <h1>{isLogin ? 'Log in' : 'Create account'}</h1>
-            <form onSubmit={onSubmit} noValidate>
-              {!isLogin && (
+        <Brand />
+        <div className="auth-form">
+          {sent ? (
+            <>
+              <h1>Check your email</h1>
+              <p className="hint" style={{ margin: 0 }}>Open the link we sent to finish creating your account, then log in.</p>
+              <p className="alt"><Link href="/login">Go to log in</Link></p>
+            </>
+          ) : (
+            <>
+              <h1>{isLogin ? 'Welcome back' : 'Create your account'}</h1>
+              <form onSubmit={onSubmit} noValidate>
+                {!isLogin && (
+                  <div className="field">
+                    <label htmlFor="email">Email</label>
+                    <input id="email" name="email" type="email" autoComplete="email" required />
+                  </div>
+                )}
                 <div className="field">
-                  <label htmlFor="email">Email</label>
-                  <input id="email" name="email" type="email" autoComplete="email" required />
+                  <label htmlFor="username">Username</label>
+                  <input id="username" name="username" autoComplete="username" required />
                 </div>
-              )}
-              <div className="field">
-                <label htmlFor="username">Username</label>
-                <input id="username" name="username" autoComplete="username" required />
-              </div>
-              <div className="field">
-                <label htmlFor="password">Password</label>
-                <input id="password" name="password" type="password" autoComplete={isLogin ? 'current-password' : 'new-password'} required />
-              </div>
-              {error && <p className="error" role="alert">{error}</p>}
-              <button className="btn" disabled={busy}>{isLogin ? 'Log in' : 'Create account'}</button>
-            </form>
-            <p className="alt">
-              {isLogin ? <>No account? <Link href="/register">Create one</Link></> : <>Have an account? <Link href="/login">Log in</Link></>}
-            </p>
-          </>
-        )}
+                <div className="field">
+                  <label htmlFor="password">Password</label>
+                  <input id="password" name="password" type="password" autoComplete={isLogin ? 'current-password' : 'new-password'} required />
+                </div>
+                {error && <p className="error" role="alert">{error}</p>}
+                <button className="btn block" disabled={busy}>{isLogin ? 'Log in' : 'Create account'}</button>
+              </form>
+              <p className="alt">
+                {isLogin ? <>New here? <Link href="/register">Create an account</Link></> : <>Already registered? <Link href="/login">Log in</Link></>}
+              </p>
+            </>
+          )}
+        </div>
       </main>
-      <div className="board-wrap" aria-hidden>
-        <div className="board-inner">{board.map((k, i) => <i key={i} className={k} />)}</div>
+      <div className="auth-art" aria-hidden>
+        <div>
+          <Chessboard
+            options={{
+              id: 'showcase',
+              position: SHOWCASE,
+              allowDragging: false,
+              showNotation: false,
+              lightSquareStyle: { backgroundColor: 'var(--board-l)' },
+              darkSquareStyle: { backgroundColor: 'var(--board-d)' },
+              boardStyle: { borderRadius: 8, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,.14)' },
+            }}
+          />
+        </div>
       </div>
     </div>
   )

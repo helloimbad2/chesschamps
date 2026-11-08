@@ -15,6 +15,9 @@ export type GameRow = {
   white_clock_ms: number
   black_clock_ms: number
   last_move_at: string
+  move_count: number
+  white_ready_at: string | null
+  black_ready_at: string | null
   white_rating_before: number | null
   black_rating_before: number | null
   white_rating_after: number | null

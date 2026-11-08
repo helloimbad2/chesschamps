@@ -18,7 +18,7 @@ export default function AdminPanel() {
     router.refresh()
   }
 
-  if (!open) return <button className="btn danger" onClick={() => setOpen(true)}>End qualifiers</button>
+  if (!open) return <button className="text-btn" onClick={() => setOpen(true)}>End qualifiers</button>
   return (
     <div className="confirm">
       <p>This closes the queue and starts the tournament with the top 16. It can’t be undone.</p>

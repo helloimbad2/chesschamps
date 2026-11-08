@@ -1,11 +1,25 @@
 import type { GameRow } from './types'
 
-/** Time left for the side to move. Clocks only run once both players have moved. */
-export function liveClocks(g: GameRow, now = Date.now()) {
+/**
+ * A player's clock starts the moment they have loaded the game (ready_at) or, once the
+ * game is under way, the moment their opponent moves. A player who has not loaded yet
+ * has a paused clock.
+ */
+function runningSince(g: GameRow): number {
   const ply = g.moves.length
-  const elapsed = ply >= 2 ? now - new Date(g.last_move_at).getTime() : 0
-  const white = g.white_clock_ms - (ply % 2 === 0 ? elapsed : 0)
-  const black = g.black_clock_ms - (ply % 2 === 1 ? elapsed : 0)
-  return { white, black }
+  const last = new Date(g.last_move_at).getTime()
+  if (ply >= 2) return last
+  const ready = ply === 0 ? g.white_ready_at : g.black_ready_at
+  return ready ? Math.max(last, new Date(ready).getTime()) : Infinity
 }
 
+export function liveClocks(g: GameRow, now = Date.now()) {
+  const elapsed = Math.max(0, now - runningSince(g))
+  const whiteToMove = g.moves.length % 2 === 0
+  return {
+    white: g.white_clock_ms - (whiteToMove ? elapsed : 0),
+    black: g.black_clock_ms - (whiteToMove ? 0 : elapsed),
+  }
+}
+
+export const clockRunning = (g: GameRow, now = Date.now()) => g.status === 'active' && runningSince(g) <= now

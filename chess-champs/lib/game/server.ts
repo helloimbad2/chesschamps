@@ -65,9 +65,9 @@ export async function settleClock(admin: SupabaseClient, g: GameRow) {
   const now = Date.now()
   const ply = g.moves.length
 
-  if (ply < 2) {
-    if (now - new Date(g.last_move_at).getTime() > FIRST_MOVE_GRACE_MS) return finishGame(admin, g, null, 'aborted')
-    return null
+  // Nobody moved in time to get the game going: abort without a rating change.
+  if (ply < 2 && now - new Date(g.last_move_at).getTime() > FIRST_MOVE_GRACE_MS) {
+    return finishGame(admin, g, null, 'aborted')
   }
   const { white, black } = liveClocks(g, now)
   const mover = ply % 2 === 0 ? 'white' : 'black'

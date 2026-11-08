@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { GameRow } from '@/lib/game/types'
 import GameClient from '@/components/GameClient'
+import Header from '@/components/Header'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,11 +17,13 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
   const { data: players } = await supabase
     .from('profiles')
-    .select('id, username, rating')
+    .select('id, username, country')
     .in('id', [game.white_id, game.black_id])
-  const info = (uid: string) => players?.find((p) => p.id === uid) ?? { id: uid, username: 'Player', rating: 1000 }
+  const info = (uid: string) => players?.find((p) => p.id === uid) ?? { id: uid, username: 'Player', country: null }
 
   return (
+    <>
+    <Header />
     <GameClient
       initial={game as GameRow}
       serverNow={Date.now()}
@@ -28,5 +31,6 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       white={info(game.white_id)}
       black={info(game.black_id)}
     />
+    </>
   )
 }

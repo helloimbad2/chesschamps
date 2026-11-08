@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { countryFromHeaders } from '@/lib/country'
 
 const fail = (message: string, status = 401) => NextResponse.json({ error: message }, { status })
 
@@ -18,10 +19,12 @@ export async function POST(req: Request) {
   if (!email) return fail('Wrong username or password.')
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data: session, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
     if (error.code === 'email_not_confirmed') return fail('Confirm your email first, then log in.', 403)
     return fail('Wrong username or password.')
   }
+  const country = countryFromHeaders(req.headers)
+  if (country && session.user) await admin.from('profiles').update({ country }).eq('id', session.user.id)
   return NextResponse.json({ ok: true })
 }

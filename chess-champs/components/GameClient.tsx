@@ -12,9 +12,9 @@ import { clockRunning, liveClocks } from '@/lib/game/clock'
 import { toSan } from '@/lib/game/san'
 import { VARIANT_LABEL, tcLabel } from '@/lib/game/config'
 import type { GameRow } from '@/lib/game/types'
-import Brand from './Brand'
+import Flag from './Flag'
 
-type Player = { id: string; username: string }
+type Player = { id: string; username: string; country?: string | null }
 type Props = { initial: GameRow; serverNow: number; myId: string; white: Player; black: Player }
 
 const GLYPH: Record<string, string> = { queen: '♕', rook: '♖', bishop: '♗', knight: '♘', king: '♔' }
@@ -53,6 +53,7 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmResign, setConfirmResign] = useState(false)
+  const [premove, setPremove] = useState<{ from: string; to: string } | null>(null)
   const offset = useRef(serverNow - Date.now())
   const flagged = useRef(-1)
   const gameRef = useRef(game)
@@ -65,6 +66,7 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
   const ply = game.moves.length
   const turn = ply % 2 === 0 ? 'white' : 'black'
   const canMove = active && myColor === turn && !busy
+  const waiting = active && !!myColor && turn !== myColor
 
   const { pos } = useMemo(() => {
     try {
@@ -149,6 +151,25 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
     return out
   }, [pos, canMove])
 
+  // One premove: queued while the opponent is thinking, played as soon as it is our turn if it is legal.
+  useEffect(() => {
+    if (!premove) return
+    if (!active || !myColor) return setPremove(null)
+    if (!canMove) return
+    const { from, to } = premove
+    setPremove(null)
+    if (dests.get(from)?.has(to)) attempt(from, to, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canMove, premove, dests, active])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setPremove(null); setSelected(null); setPromo(null) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   async function send(uci: string) {
     const prev = gameRef.current
     const at = Date.now() + offset.current
@@ -185,11 +206,15 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
     }
   }
 
-  function attempt(from: string, to: string) {
+  function attempt(from: string, to: string, auto = false) {
     if (!canMove || !dests.get(from)?.has(to)) return false
     const f = parseSquare(from)!, t = parseSquare(to)!
     const piece = pos.board.get(f)
     if (piece?.role === 'pawn' && (t >> 3 === 0 || t >> 3 === 7)) {
+      if (auto) {
+        send(makeUci({ from: f, to: t, promotion: 'queen' }))
+        return true
+      }
       setPromo({ from: f, to: t })
       return false
     }
@@ -203,6 +228,7 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
     const s: Record<string, React.CSSProperties> = {}
     const last = game.moves[game.moves.length - 1]
     if (last) for (const sq of [last.slice(0, 2), last.slice(2, 4)]) s[sq] = { backgroundColor: 'var(--hl)' }
+    if (premove) for (const sq of [premove.from, premove.to]) s[sq] = { backgroundColor: 'var(--pre)' }
     if (active && pos.isCheck()) {
       const k = pos.board.kingOf(pos.turn)
       if (k !== undefined) s[makeSquare(k)] = { ...s[makeSquare(k)], backgroundImage: CHECK }
@@ -214,7 +240,7 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
       }
     }
     return s
-  }, [game.moves, selected, dests, pos, active])
+  }, [game.moves, selected, dests, pos, active, premove])
 
   const roles: Role[] = ['queen', 'rook', 'bishop', 'knight', ...(game.variant === 'antichess' ? (['king'] as Role[]) : [])]
 
@@ -231,6 +257,7 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
       <div className="player">
         <div className="name">
           <span className={`chip ${color === 'white' ? 'w' : 'b'}`} />
+          <Flag code={p.country} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.username}</span>
           {checks(color) && <small>{checks(color)}</small>}
         </div>
@@ -263,20 +290,30 @@ export default function GameClient({ initial, serverNow, myId, white, black }: P
 
   return (
     <>
-      <header className="top"><Brand /></header>
       <div className="game">
         <div className="board-col">
           {bar(orientation === 'white' ? 'black' : 'white')}
           <div className="board-frame">
             <Chessboard
               options={{
-                id: game.id,
+                id: 'board',
                 position: makeFen(pos.toSetup()).split(' ')[0],
                 boardOrientation: orientation,
-                allowDragging: canMove,
-                canDragPiece: ({ piece }) => canMove && mine(piece.pieceType),
-                onPieceDrop: ({ sourceSquare, targetSquare }) => (targetSquare ? attempt(sourceSquare, targetSquare) : false),
+                allowDragging: canMove || waiting,
+                canDragPiece: ({ piece }) => (canMove || waiting) && mine(piece.pieceType),
+                onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                  if (!targetSquare) return false
+                  if (canMove) return attempt(sourceSquare, targetSquare)
+                  if (waiting && targetSquare !== sourceSquare) setPremove({ from: sourceSquare, to: targetSquare })
+                  return false
+                },
                 onSquareClick: ({ piece, square }) => {
+                  if (waiting) {
+                    if (selected && selected !== square) { setPremove({ from: selected, to: square }); setSelected(null) }
+                    else if (piece && mine(piece.pieceType)) { setSelected(square); setPremove(null) }
+                    else { setSelected(null); setPremove(null) }
+                    return
+                  }
                   if (selected && dests.get(selected)?.has(square)) attempt(selected, square)
                   else if (canMove && piece && mine(piece.pieceType)) setSelected(square)
                   else setSelected(null)

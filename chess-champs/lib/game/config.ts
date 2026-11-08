@@ -23,3 +23,12 @@ export const PLACEMENT_GAMES = 5
 export const FIRST_MOVE_GRACE_MS = 45_000
 
 export const tcLabel = (initialMs: number, incMs: number) => `${initialMs / 60000}+${incMs / 1000}`
+
+export const VARIANT_BLURB: Record<Variant, string> = {
+  standard: 'The classic game.',
+  chess960: 'Shuffled back rank, same rules.',
+  threecheck: 'Give three checks to win.',
+  atomic: 'Captures explode the pieces around them.',
+  antichess: 'Captures are forced. Lose everything to win.',
+  kingofthehill: 'Walk your king to the center.',
+}
